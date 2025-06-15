@@ -149,10 +149,10 @@ class HomeScreen extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text(
-              "${bookProvider.books.length} koleksi buku anda",
-              style: const TextStyle(color: Colors.grey, fontSize: 14),
-            ),
+            // child: Text(
+            //   "${bookProvider.books.length} koleksi buku anda",
+            //   style: const TextStyle(color: Colors.grey, fontSize: 14),
+            // ),
           ),
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(

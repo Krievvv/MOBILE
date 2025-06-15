@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/storage_service.dart';
 
 class AddBookScreen extends StatefulWidget {
   const AddBookScreen({super.key});
@@ -30,7 +31,9 @@ class _AddBookScreenState extends State<AddBookScreen> {
   
   XFile? _coverImage;
   Uint8List? _coverImageBytes;
+  String? _uploadedCoverUrl; // Store uploaded cover URL
   bool _isLoading = false;
+  bool _isUploadingImage = false;
   int _currentStep = 0;
 
   final List<String> _categories = [
@@ -64,14 +67,19 @@ class _AddBookScreenState extends State<AddBookScreen> {
       if (pickedImage != null) {
         setState(() {
           _coverImage = pickedImage;
-          if (kIsWeb) {
-            pickedImage.readAsBytes().then((bytes) {
-              setState(() {
-                _coverImageBytes = Uint8List.fromList(bytes);
-              });
-            });
-          }
+          _coverImageUrlController.clear(); // Clear URL when file is selected
         });
+
+        // For web, read bytes immediately for preview
+        if (kIsWeb) {
+          final bytes = await pickedImage.readAsBytes();
+          setState(() {
+            _coverImageBytes = Uint8List.fromList(bytes);
+          });
+        }
+
+        // Upload image immediately after selection
+        await _uploadCoverImage();
       }
     } catch (e) {
       _showErrorSnackBar('Gagal memilih gambar: $e');
@@ -91,17 +99,53 @@ class _AddBookScreenState extends State<AddBookScreen> {
       if (pickedImage != null) {
         setState(() {
           _coverImage = pickedImage;
-          if (kIsWeb) {
-            pickedImage.readAsBytes().then((bytes) {
-              setState(() {
-                _coverImageBytes = Uint8List.fromList(bytes);
-              });
-            });
-          }
+          _coverImageUrlController.clear(); // Clear URL when file is selected
         });
+
+        // For web, read bytes immediately for preview
+        if (kIsWeb) {
+          final bytes = await pickedImage.readAsBytes();
+          setState(() {
+            _coverImageBytes = Uint8List.fromList(bytes);
+          });
+        }
+
+        // Upload image immediately after selection
+        await _uploadCoverImage();
       }
     } catch (e) {
       _showErrorSnackBar('Gagal mengambil foto: $e');
+    }
+  }
+
+  Future<void> _uploadCoverImage() async {
+    if (_coverImage == null) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      final uploadedUrl = await StorageService.uploadBookCover(_coverImage!);
+      if (uploadedUrl != null) {
+        setState(() {
+          _uploadedCoverUrl = uploadedUrl;
+        });
+        _showSuccessSnackBar('Cover berhasil diupload! ✓');
+      } else {
+        throw Exception('Upload gagal - URL kosong');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Gagal upload cover: $e');
+      // Reset image selection on upload failure
+      setState(() {
+        _coverImage = null;
+        _coverImageBytes = null;
+      });
+    } finally {
+      setState(() {
+        _isUploadingImage = false;
+      });
     }
   }
 
@@ -180,6 +224,16 @@ class _AddBookScreenState extends State<AddBookScreen> {
             hintText: 'https://example.com/image.jpg',
             border: OutlineInputBorder(),
           ),
+          onChanged: (value) {
+            // Clear file selection when URL is entered
+            if (value.isNotEmpty) {
+              setState(() {
+                _coverImage = null;
+                _coverImageBytes = null;
+                _uploadedCoverUrl = null;
+              });
+            }
+          },
         ),
         actions: [
           TextButton(
@@ -189,7 +243,12 @@ class _AddBookScreenState extends State<AddBookScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() {});
+              setState(() {
+                // Clear file selection when URL is set
+                _coverImage = null;
+                _coverImageBytes = null;
+                _uploadedCoverUrl = null;
+              });
             },
             child: const Text('OK'),
           ),
@@ -247,6 +306,14 @@ class _AddBookScreenState extends State<AddBookScreen> {
         throw Exception('User tidak terautentikasi');
       }
 
+      // Determine which cover URL to use
+      String? finalCoverUrl;
+      if (_uploadedCoverUrl != null) {
+        finalCoverUrl = _uploadedCoverUrl; // Use uploaded file URL
+      } else if (_coverImageUrlController.text.trim().isNotEmpty) {
+        finalCoverUrl = _coverImageUrlController.text.trim(); // Use manual URL
+      }
+
       await Supabase.instance.client.from('books').insert({
         'title': _titleController.text.trim(),
         'author': "${_firstnameController.text.trim()} ${_lastnameController.text.trim()}".trim(),
@@ -257,7 +324,7 @@ class _AddBookScreenState extends State<AddBookScreen> {
         'isbn': _isbnController.text.trim(),
         'series': _seriesController.text.trim(),
         'description': _summaryController.text.trim(),
-        'cover_image_url': _coverImageUrlController.text.trim(),
+        'cover_image_url': finalCoverUrl,
         'is_read': false,
         'notes': '',
         'user_id': user.id,
@@ -288,6 +355,18 @@ class _AddBookScreenState extends State<AddBookScreen> {
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -657,7 +736,7 @@ class _AddBookScreenState extends State<AddBookScreen> {
                 const SizedBox(height: 16),
                 Center(
                   child: GestureDetector(
-                    onTap: _showImageSourceDialog,
+                    onTap: _isUploadingImage ? null : _showImageSourceDialog,
                     child: Container(
                       width: 150,
                       height: 200,
@@ -684,15 +763,44 @@ class _AddBookScreenState extends State<AddBookScreen> {
                 ),
                 const SizedBox(height: 12),
                 Center(
-                  child: TextButton.icon(
-                    onPressed: _showImageSourceDialog,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    label: const Text('Tambah Cover'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.orangeAccent,
+                  child: _isUploadingImage
+                      ? const Column(
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 8),
+                            Text('Mengupload...'),
+                          ],
+                        )
+                      : TextButton.icon(
+                          onPressed: _showImageSourceDialog,
+                          icon: const Icon(Icons.add_photo_alternate),
+                          label: const Text('Tambah Cover'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.orangeAccent,
+                          ),
+                        ),
+                ),
+                if (_uploadedCoverUrl != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Cover berhasil diupload',
+                          style: TextStyle(color: Colors.green, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -733,7 +841,21 @@ class _AddBookScreenState extends State<AddBookScreen> {
   }
 
   Widget _buildCoverImage() {
-    if (_coverImage != null) {
+    // Priority: 1. Uploaded file, 2. Local file preview, 3. URL, 4. Placeholder
+    if (_uploadedCoverUrl != null) {
+      return Image.network(
+        _uploadedCoverUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    } else if (_coverImage != null) {
+      // Show local file preview while uploading
       return kIsWeb
           ? (_coverImageBytes != null
               ? Image.memory(
@@ -755,6 +877,10 @@ class _AddBookScreenState extends State<AddBookScreen> {
         fit: BoxFit.cover,
         width: double.infinity,
         height: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
       );
     } else {

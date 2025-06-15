@@ -68,10 +68,17 @@ class StorageService {
   static Future<String?> uploadBookCover(XFile imageFile) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) throw Exception('User tidak terautentikasi');
+      if (userId == null) {
+        print('User not authenticated');
+        throw Exception('User tidak terautentikasi');
+      }
+
+      print('Starting book cover upload for user: $userId');
 
       final fileExt = imageFile.path.split('.').last.toLowerCase();
-      final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final fileName = '$userId/book_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+
+      print('Book cover file name: $fileName');
 
       Uint8List imageBytes;
       if (kIsWeb) {
@@ -80,20 +87,38 @@ class StorageService {
         imageBytes = await File(imageFile.path).readAsBytes();
       }
 
-      await _supabase.storage.from('book-covers').uploadBinary(
-        fileName,
-        imageBytes,
-        fileOptions: const FileOptions(
-          cacheControl: '3600',
-          upsert: false,
-        ),
-      );
+      print('Book cover image bytes length: ${imageBytes.length}');
 
-      final publicUrl = _supabase.storage.from('book-covers').getPublicUrl(fileName);
+      // Upload to storage
+      final uploadResponse = await _supabase.storage
+          .from('book-covers')
+          .uploadBinary(
+            fileName,
+            imageBytes,
+            fileOptions: const FileOptions(
+              cacheControl: '3600',
+              upsert: false,
+            ),
+          );
+
+      print('Book cover upload response: $uploadResponse');
+
+      // Get public URL
+      final publicUrl = _supabase.storage
+          .from('book-covers')
+          .getPublicUrl(fileName);
+
+      print('Book cover public URL: $publicUrl');
       return publicUrl;
     } catch (e) {
       print('Error uploading book cover: $e');
-      throw Exception('Gagal mengupload cover buku: ${e.toString()}');
+      if (e.toString().contains('not found')) {
+        throw Exception('Storage bucket "book-covers" tidak ditemukan. Jalankan script SQL terlebih dahulu.');
+      } else if (e.toString().contains('permission')) {
+        throw Exception('Tidak memiliki izin untuk upload. Periksa RLS policy.');
+      } else {
+        throw Exception('Gagal mengupload cover buku: ${e.toString()}');
+      }
     }
   }
 
@@ -112,7 +137,7 @@ class StorageService {
     try {
       final buckets = await _supabase.storage.listBuckets();
       print('Available buckets: ${buckets.map((b) => b.name).toList()}');
-      return buckets.any((bucket) => bucket.name == 'avatars');
+      return buckets.any((bucket) => bucket.name == 'book-covers');
     } catch (e) {
       print('Error testing storage connection: $e');
       return false;
