@@ -54,6 +54,14 @@ class _EditBookScreenState extends State<EditBookScreen> {
         throw Exception('User not authenticated');
       }
 
+      // Prepare cover image URL - trim whitespace and validate
+      String? coverImageUrl = _coverImageUrlController.text.trim();
+      if (coverImageUrl.isEmpty) {
+        coverImageUrl = null;
+      }
+
+      print('Updating book with cover URL: $coverImageUrl');
+
       // Update the book in Supabase with user verification
       await Supabase.instance.client
           .from('books')
@@ -67,7 +75,7 @@ class _EditBookScreenState extends State<EditBookScreen> {
             'pages': int.tryParse(_pagesController.text.trim()) ?? 0,
             'isbn': _isbnController.text.trim(),
             'series': _seriesController.text.trim(),
-            'cover_image_url': _coverImageUrlController.text.trim(),
+            'cover_image_url': coverImageUrl,
           })
           .eq('id', widget.book.id)
           .eq('user_id', currentUserId); // Ensure user owns this book
@@ -97,6 +105,56 @@ class _EditBookScreenState extends State<EditBookScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _previewCoverImage() {
+    final url = _coverImageUrlController.text.trim();
+    if (url.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                title: const Text('Preview Cover'),
+                automaticallyImplyLeading: false,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const Padding(
+                      padding: EdgeInsets.all(50),
+                      child: CircularProgressIndicator(),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    padding: const EdgeInsets.all(50),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.error, size: 50, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('Gagal memuat gambar:\n$error'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
   }
 
@@ -161,29 +219,7 @@ class _EditBookScreenState extends State<EditBookScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: widget.book.coverImageUrl != null && 
-                           widget.book.coverImageUrl!.isNotEmpty
-                        ? Image.network(
-                            widget.book.coverImageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => 
-                                Container(
-                                  color: Colors.grey[200],
-                                  child: const Icon(
-                                    Icons.book,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                          )
-                        : Container(
-                            color: Colors.grey[200],
-                            child: const Icon(
-                              Icons.book,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                          ),
+                    child: _buildCoverPreview(),
                   ),
                 ),
               ),
@@ -267,10 +303,27 @@ class _EditBookScreenState extends State<EditBookScreen> {
                 icon: Icons.collections_bookmark,
               ),
               
-              _buildTextFormField(
-                controller: _coverImageUrlController,
-                label: 'URL Gambar Cover',
-                icon: Icons.image,
+              // Cover Image URL with preview button
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextFormField(
+                      controller: _coverImageUrlController,
+                      label: 'URL Gambar Cover',
+                      icon: Icons.image,
+                      onChanged: (value) {
+                        // Trigger rebuild to update preview
+                        setState(() {});
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _previewCoverImage,
+                    icon: const Icon(Icons.preview, color: Colors.orangeAccent),
+                    tooltip: 'Preview Cover',
+                  ),
+                ],
               ),
               
               _buildTextFormField(
@@ -315,6 +368,54 @@ class _EditBookScreenState extends State<EditBookScreen> {
     );
   }
 
+  Widget _buildCoverPreview() {
+    final url = _coverImageUrlController.text.trim();
+    
+    if (url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[200],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.broken_image, size: 30, color: Colors.grey),
+              const SizedBox(height: 4),
+              Text(
+                'URL tidak valid',
+                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (widget.book.coverImageUrl != null && widget.book.coverImageUrl!.isNotEmpty) {
+      return Image.network(
+        widget.book.coverImageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.book, size: 50, color: Colors.grey),
+        ),
+      );
+    } else {
+      return Container(
+        color: Colors.grey[200],
+        child: const Icon(Icons.book, size: 50, color: Colors.grey),
+      );
+    }
+  }
+
   Widget _buildTextFormField({
     required TextEditingController controller,
     required String label,
@@ -322,6 +423,7 @@ class _EditBookScreenState extends State<EditBookScreen> {
     String? Function(String?)? validator,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
+    void Function(String)? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
@@ -343,6 +445,7 @@ class _EditBookScreenState extends State<EditBookScreen> {
         validator: validator,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        onChanged: onChanged,
       ),
     );
   }

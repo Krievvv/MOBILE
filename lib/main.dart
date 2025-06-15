@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'providers/book_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/timer_provider.dart'; // Add this import
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -25,6 +26,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (context) => BookProvider()),
         ChangeNotifierProvider(create: (context) => UserProvider()),
+        ChangeNotifierProvider(create: (context) => TimerProvider()), // Add this line
         ChangeNotifierProvider.value(value: themeProvider),
       ],
       child: const MyApp(),

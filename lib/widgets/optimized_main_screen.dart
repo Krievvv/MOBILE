@@ -4,78 +4,18 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 import '../providers/book_provider.dart';
 import '../providers/theme_provider.dart';
-import '../providers/timer_provider.dart';
 import '../widgets/book_card.dart';
-import '../widgets/floating_timer_widget.dart';
-import 'profile_screen.dart';
+import '../widgets/timer_app_bar_button.dart';
+import '../widgets/timer_drawer_item.dart';
+import '../widgets/timer_quick_access_button.dart';
 import '../screens/add_book_screen.dart';
-import '../screens/reading_timer_screen.dart';
-import '../screens/reading_history_screen.dart';
-
 import 'package:peoject_uas/models/book.dart';
-import '../widgets/optimized_main_screen.dart';
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
-
-  @override
-  _MainScreenState createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bookProvider = Provider.of<BookProvider>(context);
-    final supabaseClient = supabase.Supabase.instance.client;
-
-    final List<Widget> _screens = [
-      OptimizedHomeScreen(bookProvider: bookProvider, onNavigate: _onItemTapped),
-      const ReadingTimerScreen(),
-      const ReadingHistoryScreen(),
-      ProfileScreen(
-        totalBooks: bookProvider.books.length,
-        booksRead: bookProvider.books.where((book) => book.isRead).length,
-      ),
-    ];
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          _screens[_selectedIndex],
-          // Floating Timer Widget
-          const FloatingTimerWidget(),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: Colors.orangeAccent,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.timer), label: "Timer"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Riwayat"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
+class OptimizedHomeScreen extends StatelessWidget {
   final BookProvider bookProvider;
   final Function(int) onNavigate;
 
-  const HomeScreen({
+  const OptimizedHomeScreen({
     super.key,
     required this.bookProvider,
     required this.onNavigate,
@@ -85,17 +25,16 @@ class HomeScreen extends StatelessWidget {
     try {
       final supabaseClient = supabase.Supabase.instance.client;
       
-      // Get current user ID
       final currentUserId = supabaseClient.auth.currentUser?.id;
       
       if (currentUserId == null) {
-        return []; // Return empty list if no user is logged in
+        return [];
       }
 
       final response = await supabaseClient
           .from('books')
           .select()
-          .eq('user_id', currentUserId) // Filter by user_id
+          .eq('user_id', currentUserId)
           .order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> books = (response as List<dynamic>)
@@ -112,7 +51,6 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final timerProvider = Provider.of<TimerProvider>(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isWideScreen = screenWidth > 600;
 
@@ -121,8 +59,7 @@ class HomeScreen extends StatelessWidget {
         title: const Text("Pustakasaku"),
         backgroundColor: Colors.orangeAccent,
         actions: [
-          // Timer Quick Access - pisahkan ke widget terpisah
-          const TimerAppBarButton(),
+          TimerAppBarButton(onPressed: () => onNavigate(1)),
           IconButton(
             icon: themeProvider.themeMode == ThemeMode.dark
                 ? const Icon(Icons.dark_mode)
@@ -165,7 +102,12 @@ class HomeScreen extends StatelessWidget {
                 onNavigate(0);
               },
             ),
-            const TimerDrawerItem(),
+            TimerDrawerItem(
+              onTap: () {
+                Navigator.pop(context);
+                onNavigate(1);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Riwayat Membaca'),
@@ -189,7 +131,7 @@ class HomeScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Quick Stats Card
+          // Quick Stats Card - Static part
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
@@ -263,13 +205,15 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const TimerQuickAccessButton(),
+                    // Only this small part updates with timer
+                    TimerQuickAccessButton(onPressed: () => onNavigate(1)),
                   ],
                 );
               },
             ),
           ),
           
+          // Books List - Static part
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: fetchBooks(),
@@ -356,121 +300,6 @@ class HomeScreen extends StatelessWidget {
         },
         child: const Icon(Icons.add, color: Colors.white),
       ),
-    );
-  }
-}
-
-class TimerAppBarButton extends StatelessWidget {
-  const TimerAppBarButton({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<TimerProvider>(
-      builder: (context, timer, child) {
-        final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
-          mainScreenState?._onItemTapped(index);
-        };
-        if (timer.isRunning || timer.isPaused) {
-          return IconButton(
-            icon: Stack(
-              children: [
-                Icon(
-                  timer.isRunning ? Icons.timer : Icons.pause_circle_outline,
-                  color: Colors.white,
-                ),
-                if (timer.isRunning)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            onPressed: () => onNavigate(1),
-            tooltip: 'Timer Aktif',
-          );
-        }
-        return IconButton(
-          icon: const Icon(Icons.timer_outlined),
-          onPressed: () => onNavigate(1),
-          tooltip: 'Timer Membaca',
-        );
-      },
-    );
-  }
-}
-
-class TimerDrawerItem extends StatelessWidget {
-  const TimerDrawerItem({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<TimerProvider>(
-      builder: (context, timer, child) {
-        final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
-          mainScreenState?._onItemTapped(index);
-        };
-        return ListTile(
-          leading: Icon(
-            timer.isRunning ? Icons.timer : Icons.timer_outlined,
-            color: timer.isRunning ? Colors.orange : null,
-          ),
-          title: Text(
-            timer.isRunning ? 'Timer Aktif' : 'Timer Membaca',
-            style: TextStyle(
-              color: timer.isRunning ? Colors.orange : null,
-              fontWeight: timer.isRunning ? FontWeight.bold : null,
-            ),
-          ),
-          trailing: timer.isRunning
-              ? Text(
-                  timer.remainingTimeString,
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                )
-              : null,
-          onTap: () {
-            Navigator.pop(context);
-            onNavigate(1);
-          },
-        );
-      },
-    );
-  }
-}
-
-class TimerQuickAccessButton extends StatelessWidget {
-  const TimerQuickAccessButton({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<TimerProvider>(
-      builder: (context, timer, child) {
-        final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
-          mainScreenState?._onItemTapped(index);
-        };
-        return IconButton(
-          onPressed: () => onNavigate(1),
-          icon: Icon(
-            timer.isRunning ? Icons.timer : Icons.timer_outlined,
-            color: timer.isRunning ? Colors.orange : Colors.orangeAccent,
-          ),
-          tooltip: timer.isRunning ? 'Timer Aktif' : 'Mulai Timer',
-        );
-      },
     );
   }
 }
