@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
-import 'register_screen.dart';
-import 'main_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 class LoginScreen extends StatefulWidget {
@@ -16,6 +14,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   bool obscurePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: TextField(
                         controller: usernameController,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: "Email",
                           prefixIcon: Icon(
@@ -163,6 +170,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: TextButton(
                         onPressed: () {
                           // Handle forgot password
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Fitur lupa password akan segera hadir!'),
+                            ),
+                          );
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: Colors.orange.shade800,
@@ -174,73 +186,86 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
 
                     // Login Button
-                    ElevatedButton(
-                      onPressed: () async {
-                        final email = usernameController.text.trim();
-                        final password = passwordController.text;
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : () async {
+                          final email = usernameController.text.trim();
+                          final password = passwordController.text;
 
-                        if (email.isNotEmpty && password.isNotEmpty) {
-                          try {
-                            final response = await supabase
-                                .Supabase.instance.client.auth
-                                .signInWithPassword(
-                                    email: email, password: password);
+                          if (email.isNotEmpty && password.isNotEmpty) {
+                            setState(() => _isLoading = true);
+                            
+                            try {
+                              final response = await supabase
+                                  .Supabase.instance.client.auth
+                                  .signInWithPassword(
+                                      email: email, password: password);
 
-                            if (response.user != null) {
-                              // If login is successful, set the user information in UserProvider
-                              final userProvider = Provider.of<UserProvider>(
-                                  context,
-                                  listen: false);
+                              if (response.user != null && mounted) {
+                                // If login is successful, set the user information in UserProvider
+                                final userProvider = Provider.of<UserProvider>(
+                                    context,
+                                    listen: false);
 
-                              // Use the email or other information from Supabase's response
-                              final email = response.user!.email ?? 'Unknown';
+                                // Use the email from Supabase's response
+                                final userEmail = response.user!.email ?? 'Unknown';
 
-                              // Set user info in the provider
-                              userProvider.setUser(email);
+                                // Set user info in the provider
+                                userProvider.setUser(userEmail);
 
-                              // After the user is set, navigate to the MainScreen
-                              // Make sure to wrap this navigation in `await` if you need async handling
-                              await Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const MainScreen()),
-                              );
-                            } else {
-                              throw 'Login failed';
+                                // Navigate to the MainScreen using named route
+                                Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/main',
+                                  (route) => false,
+                                );
+                              } else {
+                                throw 'Login failed';
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Login gagal: ${e.toString()}"),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isLoading = false);
+                              }
                             }
-                          } catch (e) {
+                          } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text("Login gagal: ${e.toString()}"),
+                              const SnackBar(
+                                content: Text("Email dan password harus diisi"),
                                 backgroundColor: Colors.red,
                               ),
                             );
                           }
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Email dan password harus diisi"),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 3,
+                          shadowColor: Colors.orange.withOpacity(0.5),
                         ),
-                        elevation: 3,
-                        shadowColor: Colors.orange.withOpacity(0.5),
-                      ),
-                      child: const Text(
-                        "MASUK",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              )
+                            : const Text(
+                                "MASUK",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
 
@@ -258,11 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         TextButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const RegisterScreen()),
-                            );
+                            Navigator.of(context).pushNamed('/register');
                           },
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.orange.shade800,
@@ -305,6 +326,11 @@ class _LoginScreenState extends State<LoginScreen> {
     return InkWell(
       onTap: () {
         // Handle social login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Fitur social login akan segera hadir!'),
+          ),
+        );
       },
       child: Container(
         padding: const EdgeInsets.all(12),

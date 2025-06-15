@@ -15,27 +15,43 @@ class AddBookScreen extends StatefulWidget {
 }
 
 class _AddBookScreenState extends State<AddBookScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _lastnameController = TextEditingController();
   final TextEditingController _firstnameController = TextEditingController();
   final TextEditingController _summaryController = TextEditingController();
   final TextEditingController _seriesController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
-  final TextEditingController _publishedDateController =
-      TextEditingController();
+  final TextEditingController _publishedDateController = TextEditingController();
   final TextEditingController _publisherController = TextEditingController();
   final TextEditingController _pagesController = TextEditingController();
   final TextEditingController _isbnController = TextEditingController();
   final TextEditingController _coverImageUrlController = TextEditingController();
+  
   XFile? _coverImage;
   Uint8List? _coverImageBytes;
   bool _isLoading = false;
+  int _currentStep = 0;
+
+  final List<String> _categories = [
+    'Fiksi',
+    'Non-Fiksi',
+    'Biografi',
+    'Sejarah',
+    'Sains',
+    'Teknologi',
+    'Bisnis',
+    'Self-Help',
+    'Romance',
+    'Mystery',
+    'Fantasy',
+    'Horror',
+    'Komedi',
+    'Drama',
+    'Lainnya'
+  ];
 
   Future<void> _pickCoverImage() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       final picker = ImagePicker();
       final pickedImage = await picker.pickImage(
@@ -58,32 +74,186 @@ class _AddBookScreenState extends State<AddBookScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to pick image: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      _showErrorSnackBar('Gagal memilih gambar: $e');
     }
   }
 
-  Future<void> _saveBook() async {
+  Future<void> _takeCoverPhoto() async {
     try {
-      setState(() => _isLoading = true);
+      final picker = ImagePicker();
+      final pickedImage = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
 
+      if (pickedImage != null) {
+        setState(() {
+          _coverImage = pickedImage;
+          if (kIsWeb) {
+            pickedImage.readAsBytes().then((bytes) {
+              setState(() {
+                _coverImageBytes = Uint8List.fromList(bytes);
+              });
+            });
+          }
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Gagal mengambil foto: $e');
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Pilih Sumber Gambar',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Galeri',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickCoverImage();
+                  },
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.camera_alt,
+                  label: 'Kamera',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _takeCoverPhoto();
+                  },
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.link,
+                  label: 'URL',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showUrlDialog();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showUrlDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Masukkan URL Gambar'),
+        content: TextField(
+          controller: _coverImageUrlController,
+          decoration: const InputDecoration(
+            hintText: 'https://example.com/image.jpg',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {});
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.orangeAccent,
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveBook() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
-        throw Exception('User not authenticated');
+        throw Exception('User tidak terautentikasi');
       }
 
       await Supabase.instance.client.from('books').insert({
         'title': _titleController.text.trim(),
-        'author': "${_firstnameController.text.trim()} ${_lastnameController.text.trim()}",
+        'author': "${_firstnameController.text.trim()} ${_lastnameController.text.trim()}".trim(),
         'category': _categoryController.text.trim(),
         'published_date': _publishedDateController.text.trim(),
         'publisher': _publisherController.text.trim(),
-        'pages': int.parse(_pagesController.text.trim()), // Convert string to integer
+        'pages': int.tryParse(_pagesController.text.trim()) ?? 0,
         'isbn': _isbnController.text.trim(),
         'series': _seriesController.text.trim(),
         'description': _summaryController.text.trim(),
@@ -95,20 +265,69 @@ class _AddBookScreenState extends State<AddBookScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Book added successfully')),
+          const SnackBar(
+            content: Text('Buku berhasil ditambahkan! 📚'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding book: $e')),
-        );
-      }
+      _showErrorSnackBar('Error menambahkan buku: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _nextStep() {
+    if (_currentStep < 2) {
+      // Validasi untuk setiap langkah
+      bool canProceed = false;
+      
+      switch (_currentStep) {
+        case 0:
+          // Validasi langkah 1: Informasi Dasar
+          canProceed = _titleController.text.trim().isNotEmpty &&
+                      _firstnameController.text.trim().isNotEmpty;
+          if (!canProceed) {
+            _showErrorSnackBar('Mohon lengkapi judul buku dan nama penulis');
+            return;
+          }
+          break;
+        case 1:
+          // Langkah 2 bisa dilanjutkan tanpa validasi khusus
+          canProceed = true;
+          break;
+      }
+      
+      if (canProceed) {
+        setState(() {
+          _currentStep++;
+        });
+      }
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      setState(() {
+        _currentStep--;
+      });
     }
   }
 
@@ -130,132 +349,511 @@ class _AddBookScreenState extends State<AddBookScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge!.color;
-
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: theme.primaryColor,
-        title: Text(
-          'Pustakasaku',
-          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+        title: const Text(
+          'Tambah Buku Baru',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
+        backgroundColor: Colors.orangeAccent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.check, color: textColor),
-            onPressed: _saveBook,
+            icon: _isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.save, color: Colors.white),
+            onPressed: _isLoading ? null : _saveBook,
           ),
         ],
       ),
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: GestureDetector(
-                    onTap: _pickCoverImage,
-                    child: Container(
-                      width: 120,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.orangeAccent.withOpacity(0.1),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Stepper(
+            currentStep: _currentStep,
+            onStepTapped: (step) {
+              // Hanya bisa pindah ke langkah sebelumnya atau yang sudah divalidasi
+              if (step <= _currentStep || step == 0) {
+                setState(() {
+                  _currentStep = step;
+                });
+              } else if (step == 1 && _titleController.text.trim().isNotEmpty && 
+                         _firstnameController.text.trim().isNotEmpty) {
+                setState(() {
+                  _currentStep = step;
+                });
+              }
+            },
+            controlsBuilder: (context, details) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Row(
+                  children: [
+                    if (details.stepIndex < 2)
+                      ElevatedButton.icon(
+                        onPressed: _nextStep,
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Lanjut'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                       ),
-                      child: _coverImage != null
-                          ? kIsWeb
-                              ? (_coverImageBytes != null
-                                  ? Image.memory(
-                                      _coverImageBytes!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : const CircularProgressIndicator())
-                              : Image.file(
-                                  File(_coverImage!.path),
-                                  fit: BoxFit.cover,
-                                )
-                          : const Icon(
-                              Icons.add_a_photo,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                    ),
+                    if (details.stepIndex == 2)
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _saveBook,
+                        icon: _isLoading 
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(_isLoading ? 'Menyimpan...' : 'Simpan Buku'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    if (details.stepIndex > 0)
+                      TextButton.icon(
+                        onPressed: _previousStep,
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Kembali'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey[600],
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+            steps: [
+              Step(
+                title: const Text('Informasi Dasar'),
+                content: _buildBasicInfoStep(),
+                isActive: _currentStep >= 0,
+                state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+              ),
+              Step(
+                title: const Text('Detail Buku'),
+                content: _buildBookDetailsStep(),
+                isActive: _currentStep >= 1,
+                state: _currentStep > 1 ? StepState.complete : 
+                       _currentStep == 1 ? StepState.indexed : StepState.disabled,
+              ),
+              Step(
+                title: const Text('Cover & Deskripsi'),
+                content: _buildCoverDescriptionStep(),
+                isActive: _currentStep >= 2,
+                state: _currentStep == 2 ? StepState.indexed : StepState.disabled,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoStep() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Informasi Dasar Buku',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildTextFormField(
+              controller: _titleController,
+              label: 'Judul Buku',
+              icon: Icons.title,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Judul buku tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _firstnameController,
+                    label: 'Nama Depan Penulis',
+                    icon: Icons.person,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Nama depan tidak boleh kosong';
+                      }
+                      return null;
+                    },
                   ),
                 ),
-                const SizedBox(height: 16),
-                _buildTextField(_titleController, 'Title'),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                          _firstnameController, 'Firstname'),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildTextField(_lastnameController, 'Lastname'),
-                    ),
-                  ],
-                ),
-                _buildTextField(_summaryController, 'Summary', maxLines: 3),
-                _buildTextField(_seriesController, 'Series'),
-                _buildTextField(_categoryController, 'Category'),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                          _publishedDateController, 'Published Date'),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildTextField(_publisherController, 'Publisher'),
-                    ),
-                  ],
-                ),
-                _buildTextField(_pagesController, 'Pages',
-                    keyboardType: TextInputType.number),
-                _buildTextField(_isbnController, 'ISBN'),
-                _buildTextField(_coverImageUrlController, 'Cover Image URL'),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saveBook,
-                    child: const Text('OK'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _lastnameController,
+                    label: 'Nama Belakang Penulis',
+                    icon: Icons.person_outline,
                   ),
                 ),
               ],
             ),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(),
-              ),
+            _buildDropdownField(
+              value: _categoryController.text.isEmpty ? null : _categoryController.text,
+              label: 'Kategori',
+              icon: Icons.category,
+              items: _categories,
+              onChanged: (value) {
+                setState(() {
+                  _categoryController.text = value ?? '';
+                });
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label,
-      {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        errorText: controller.text.trim().isEmpty && (label == 'Title' || label == 'Firstname')
-            ? 'This field cannot be empty'
-            : null,
+  Widget _buildBookDetailsStep() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Detail Publikasi',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.orangeAccent,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _publisherController,
+                    label: 'Penerbit',
+                    icon: Icons.business,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _publishedDateController,
+                    label: 'Tahun Terbit',
+                    icon: Icons.calendar_today,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _pagesController,
+                    label: 'Jumlah Halaman',
+                    icon: Icons.description,
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value != null && value.isNotEmpty) {
+                        if (int.tryParse(value) == null) {
+                          return 'Masukkan angka yang valid';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextFormField(
+                    controller: _isbnController,
+                    label: 'ISBN',
+                    icon: Icons.qr_code,
+                  ),
+                ),
+              ],
+            ),
+            _buildTextFormField(
+              controller: _seriesController,
+              label: 'Seri (Opsional)',
+              icon: Icons.collections_bookmark,
+            ),
+          ],
+        ),
       ),
-      style: Theme.of(context).textTheme.bodyLarge,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
+    );
+  }
+
+  Widget _buildCoverDescriptionStep() {
+    return Column(
+      children: [
+        // Cover Image Section
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Cover Buku',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orangeAccent,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: GestureDetector(
+                    onTap: _showImageSourceDialog,
+                    child: Container(
+                      width: 150,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orangeAccent.withOpacity(0.3),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: _buildCoverImage(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _showImageSourceDialog,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: const Text('Tambah Cover'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.orangeAccent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Description Section
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Deskripsi Buku',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orangeAccent,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildTextFormField(
+                  controller: _summaryController,
+                  label: 'Ringkasan/Deskripsi',
+                  icon: Icons.description,
+                  maxLines: 5,
+                  hintText: 'Tulis ringkasan atau deskripsi singkat tentang buku ini...',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCoverImage() {
+    if (_coverImage != null) {
+      return kIsWeb
+          ? (_coverImageBytes != null
+              ? Image.memory(
+                  _coverImageBytes!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                )
+              : const Center(child: CircularProgressIndicator()))
+          : Image.file(
+              File(_coverImage!.path),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            );
+    } else if (_coverImageUrlController.text.isNotEmpty) {
+      return Image.network(
+        _coverImageUrlController.text,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    } else {
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey[100],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.add_photo_alternate,
+            size: 40,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tambah Cover',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextFormField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    String? hintText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hintText,
+          prefixIcon: Icon(icon, color: Colors.orangeAccent),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        validator: validator,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+      ),
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String? value,
+    required String label,
+    required IconData icon,
+    required List<String> items,
+    required void Function(String?) onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: Colors.orangeAccent),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        items: items.map((String item) {
+          return DropdownMenuItem<String>(
+            value: item,
+            child: Text(item),
+          );
+        }).toList(),
+        onChanged: onChanged,
+      ),
     );
   }
 }

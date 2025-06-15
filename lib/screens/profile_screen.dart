@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/user_provider.dart';
-import 'login_screen.dart';
+import '../models/user_profile.dart';
+import '../services/profile_service.dart';
 import 'edit_profile_screen.dart';
-import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final int totalBooks;
   final int booksRead;
 
@@ -15,144 +14,321 @@ class ProfileScreen extends StatelessWidget {
     required this.booksRead,
   });
 
-  void _navigateToEditProfile(BuildContext context) {
-    Navigator.push(
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  UserProfile? _userProfile;
+  Map<String, int> _bookStats = {'total': 0, 'read': 0, 'unread': 0};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+    _loadBookStats();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await ProfileService.getCurrentProfile();
+      if (mounted) {
+        setState(() {
+          _userProfile = profile;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadBookStats() async {
+    try {
+      final stats = await ProfileService.getBookStats();
+      if (mounted) {
+        setState(() {
+          _bookStats = stats;
+        });
+      }
+    } catch (e) {
+      print('Error loading book stats: $e');
+    }
+  }
+
+  Future<void> _navigateToEditProfile() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const EditProfileScreen(),
+        builder: (context) => EditProfileScreen(currentProfile: _userProfile),
       ),
     );
+
+    if (result != null && result is UserProfile) {
+      setState(() {
+        _userProfile = result;
+      });
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+      if (mounted) {
+        // Use pushNamedAndRemoveUntil to clear the navigation stack
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error signing out: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // Background Image
-          Positioned.fill(
-            child: Image.asset(
-              'assets/background.jpg',
-              fit: BoxFit.cover,
-            ),
+      appBar: AppBar(
+        title: const Text(
+          'Profil Saya',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.orangeAccent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.white),
+            onPressed: _navigateToEditProfile,
           ),
-
-          // Content
-          Column(
-            children: [
-              const SizedBox(height: 60),
-
-              // Profile Picture with Edit Icon
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 55,
-                    backgroundColor: Colors.white,
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundImage: userProvider.profileImagePath != null && userProvider.profileImagePath!.isNotEmpty
-                          ? FileImage(File(userProvider.profileImagePath!))
-                          : const AssetImage('assets/Profile.jpg')
-                              as ImageProvider,
-                    ),
-                  ),
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.black,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.white, size: 18),
-                      onPressed: () => _navigateToEditProfile(context),
-                    ),
-                  ),
-                ],
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _signOut,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Profile Header
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-
-              const SizedBox(height: 10),
-              Text(
-                userProvider.username ?? "Pengguna",
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Profile Card
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+              child: Padding(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.orangeAccent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
                 child: Column(
                   children: [
-                    ProfileMenuItem(
-                      icon: Icons.book,
-                      text: "Total Buku: $totalBooks",
-                      onTap: () {},
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.grey[200],
+                      backgroundImage: _userProfile?.avatarUrl != null
+                          ? NetworkImage(_userProfile!.avatarUrl!)
+                          : null,
+                      child: _userProfile?.avatarUrl == null
+                          ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                          : null,
                     ),
-                    ProfileMenuItem(
-                      icon: Icons.check,
-                      text: "Buku Dibaca: $booksRead",
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.black,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 12, horizontal: 30),
+                    const SizedBox(height: 16),
+                    Text(
+                      _userProfile?.username ?? 'Username',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
-                      onPressed: () {
-                        userProvider.logout();
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                        );
-                      },
-                      child:
-                          const Text("Logout", style: TextStyle(fontSize: 16)),
+                    ),
+                    if (_userProfile?.fullName != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _userProfile!.fullName!,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                    if (_userProfile?.bio != null && _userProfile!.bio!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _userProfile!.bio!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Book Statistics
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Statistik Buku',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem(
+                          'Total Buku',
+                          _bookStats['total'].toString(),
+                          Icons.library_books,
+                          Colors.blue,
+                        ),
+                        _buildStatItem(
+                          'Sudah Dibaca',
+                          _bookStats['read'].toString(),
+                          Icons.check_circle,
+                          Colors.green,
+                        ),
+                        _buildStatItem(
+                          'Belum Dibaca',
+                          _bookStats['unread'].toString(),
+                          Icons.schedule,
+                          Colors.orange,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 20),
+
+            // Action Buttons
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.edit, color: Colors.orangeAccent),
+                      title: const Text('Edit Profil'),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: _navigateToEditProfile,
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.settings, color: Colors.grey),
+                      title: const Text('Pengaturan'),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () {
+                        // TODO: Navigate to settings
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Fitur pengaturan akan segera hadir!'),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text('Keluar', style: TextStyle(color: Colors.red)),
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Konfirmasi'),
+                            content: const Text('Apakah Anda yakin ingin keluar?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Batal'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _signOut();
+                                },
+                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                child: const Text('Keluar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-// Reusable Profile Menu Item Widget
-class ProfileMenuItem extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final VoidCallback onTap;
-
-  const ProfileMenuItem({
-    super.key,
-    required this.icon,
-    required this.text,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white),
-      title: Text(text, style: const TextStyle(color: Colors.white)),
-      trailing:
-          const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
-      onTap: onTap,
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

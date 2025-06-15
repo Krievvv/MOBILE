@@ -1,87 +1,87 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/user_provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import '../models/user_profile.dart';
+import '../services/profile_service.dart';
+import '../services/storage_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final UserProfile? currentProfile;
+
+  const EditProfileScreen({super.key, this.currentProfile});
 
   @override
   _EditProfileScreenState createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _fullNameController = TextEditingController();
+  final _bioController = TextEditingController();
+  
   XFile? _pickedImage;
   bool _isLoading = false;
-  final TextEditingController _usernameController = TextEditingController();
-  
+  bool _isCheckingUsername = false;
+  String? _currentAvatarUrl;
+  String? _usernameError;
+
   @override
   void initState() {
     super.initState();
-    // Initialize the username controller with current username
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      _usernameController.text = userProvider.username ?? 'Pengguna';
-    });
-  }
-  
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    super.dispose();
+    _initializeControllers();
   }
 
-  Future<bool> _requestGalleryPermission() async {
+  void _initializeControllers() {
+    if (widget.currentProfile != null) {
+      _usernameController.text = widget.currentProfile!.username;
+      _fullNameController.text = widget.currentProfile!.fullName ?? '';
+      _bioController.text = widget.currentProfile!.bio ?? '';
+      _currentAvatarUrl = widget.currentProfile!.avatarUrl;
+    }
+  }
+
+  Future<void> _checkUsernameAvailability(String username) async {
+    if (username.trim().isEmpty) return;
+    
+    // Don't check if it's the same as current username
+    if (widget.currentProfile?.username == username.trim()) {
+      setState(() {
+        _usernameError = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingUsername = true;
+      _usernameError = null;
+    });
+
     try {
-      final status = await Permission.photos.request();
-      if (status.isGranted) {
-        return true;
-      } else if (status.isPermanentlyDenied) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Please enable gallery access in settings'),
-              action: SnackBarAction(
-                label: 'Open Settings',
-                onPressed: () => openAppSettings(),
-              ),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gallery access denied')),
-          );
-        }
+      final isAvailable = await ProfileService.checkUsernameAvailable(
+        username.trim(),
+        excludeUserId: widget.currentProfile?.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _usernameError = isAvailable ? null : 'Username sudah digunakan';
+          _isCheckingUsername = false;
+        });
       }
-      return false;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Permission request failed: $e')),
-        );
+        setState(() {
+          _usernameError = 'Error memeriksa username';
+          _isCheckingUsername = false;
+        });
       }
-      return false;
     }
   }
 
   Future<void> _pickImage() async {
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
-      final hasPermission = await _requestGalleryPermission();
-      if (!hasPermission) {
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
       final picker = ImagePicker();
       final pickedImage = await picker.pickImage(
         source: ImageSource.gallery,
@@ -96,147 +96,412 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to pick image: $e')),
-        );
-      }
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      _showErrorSnackBar('Gagal memilih gambar: $e');
     }
   }
 
-  void _saveProfile(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    
-    // Update both username and profile image if changed
-    final String newUsername = _usernameController.text.trim();
-    final String? newImagePath = _pickedImage?.path;
-    
-    if (newUsername.isNotEmpty) {
-      userProvider.updateProfile(
-        username: newUsername,
-        profileImagePath: newImagePath,
+  Future<void> _takePhoto() async {
+    try {
+      final picker = ImagePicker();
+      final pickedImage = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
       );
-    } else {
-      // Only update the image if username is empty
-      if (newImagePath != null) {
-        userProvider.updateProfile(profileImagePath: newImagePath);
+
+      if (pickedImage != null) {
+        setState(() {
+          _pickedImage = pickedImage;
+        });
+      }
+    } catch (e) {
+      _showErrorSnackBar('Gagal mengambil foto: $e');
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Pilih Sumber Foto',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageSourceOption(
+                  icon: Icons.photo_library,
+                  label: 'Galeri',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage();
+                  },
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.camera_alt,
+                  label: 'Kamera',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _takePhoto();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _testStorageConnection() async {
+    try {
+      final isConnected = await StorageService.testStorageConnection();
+      if (!isConnected) {
+        _showErrorSnackBar('Storage bucket "avatars" tidak ditemukan. Jalankan script SQL terlebih dahulu.');
+      } else {
+        _showErrorSnackBar('Koneksi storage berhasil!');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error testing storage: $e');
+    }
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+            ),
+            child: Icon(icon, color: Colors.orangeAccent, size: 30),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_usernameError != null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      String? avatarUrl = _currentAvatarUrl;
+
+      // Upload new avatar if selected
+      if (_pickedImage != null) {
+        print('Uploading new avatar...');
+        try {
+          avatarUrl = await StorageService.uploadAvatar(_pickedImage!);
+          print('Avatar uploaded successfully: $avatarUrl');
+        } catch (uploadError) {
+          print('Avatar upload failed: $uploadError');
+          // Show specific upload error but continue with profile save
+          _showErrorSnackBar('Upload foto gagal: ${uploadError.toString()}');
+          // Don't return here, continue saving profile without new avatar
+        }
+      }
+
+      UserProfile? updatedProfile;
+
+      if (widget.currentProfile == null) {
+        // Create new profile
+        updatedProfile = await ProfileService.createProfile(
+          username: _usernameController.text.trim(),
+          fullName: _fullNameController.text.trim().isEmpty ? null : _fullNameController.text.trim(),
+          avatarUrl: avatarUrl,
+          bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+        );
+      } else {
+        // Update existing profile
+        updatedProfile = await ProfileService.updateProfile(
+          username: _usernameController.text.trim(),
+          fullName: _fullNameController.text.trim().isEmpty ? null : _fullNameController.text.trim(),
+          avatarUrl: avatarUrl,
+          bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+        );
+      }
+
+      if (updatedProfile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil berhasil disimpan! ✓'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, updatedProfile);
+      } else {
+        throw Exception('Gagal menyimpan profil');
+      }
+    } catch (e) {
+      print('Profile save error: $e');
+      _showErrorSnackBar('Error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
-    
-    Navigator.pop(context);
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _fullNameController.dispose();
+    _bioController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: Text(
+          widget.currentProfile == null ? 'Buat Profil' : 'Edit Profil',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.orangeAccent,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: _isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.save, color: Colors.white),
+            onPressed: _isLoading ? null : _saveProfile,
+          ),
+        ],
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 20),
-                
-                // Profile Picture Preview
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: _pickedImage != null
-                      ? FileImage(File(_pickedImage!.path))
-                      : (userProvider.profileImagePath != null && userProvider.profileImagePath!.isNotEmpty
-                          ? FileImage(File(userProvider.profileImagePath!))
-                          : const AssetImage('assets/Profile.jpg'))
-                          as ImageProvider,
-                ),
-                const SizedBox(height: 20),
-
-                // Pick Image Button
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 30),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              
+              // Profile Picture
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.grey[200],
+                    backgroundImage: _getProfileImage(),
+                    child: _getProfileImage() == null
+                        ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                        : null,
                   ),
-                  onPressed: _isLoading ? null : _pickImage,
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Choose Image'),
-                ),
-                const SizedBox(height: 30),
-                
-                // Username TextField
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
-                        spreadRadius: 2,
-                        blurRadius: 5,
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _showImageSourceDialog,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Enter your username',
-                      prefixIcon: const Icon(Icons.person, color: Colors.orangeAccent),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
                     ),
                   ),
-                ),
-                const SizedBox(height: 30),
+                ],
+              ),
+              const SizedBox(height: 30),
 
-                // Save Button
-                ElevatedButton(
+              // Username Field (Required)
+              TextFormField(
+                controller: _usernameController,
+                decoration: InputDecoration(
+                  labelText: 'Username *',
+                  prefixIcon: const Icon(Icons.person, color: Colors.orangeAccent),
+                  suffixIcon: _isCheckingUsername 
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : _usernameError == null && _usernameController.text.isNotEmpty
+                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.red, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  errorText: _usernameError,
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Username tidak boleh kosong';
+                  }
+                  if (value.trim().length < 3) {
+                    return 'Username minimal 3 karakter';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  // Debounce username checking
+                  Future.delayed(const Duration(milliseconds: 500), () {
+                    if (_usernameController.text == value) {
+                      _checkUsernameAvailability(value);
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Full Name Field (Optional)
+              TextFormField(
+                controller: _fullNameController,
+                decoration: InputDecoration(
+                  labelText: 'Nama Lengkap',
+                  prefixIcon: const Icon(Icons.badge, color: Colors.orangeAccent),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Bio Field (Optional)
+              TextFormField(
+                controller: _bioController,
+                decoration: InputDecoration(
+                  labelText: 'Bio',
+                  prefixIcon: const Icon(Icons.info, color: Colors.orangeAccent),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 30),
+
+              // Save Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: (_isLoading || _usernameError != null) ? null : _saveProfile,
+                  icon: _isLoading 
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(_isLoading ? 'Menyimpan...' : 'Simpan Profil'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orangeAccent,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 50),
                   ),
-                  onPressed: _isLoading ? null : () => _saveProfile(context),
-                  child: const Text(
-                    'Save',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_isLoading)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.orangeAccent),
                 ),
               ),
-            ),
-        ],
+              const SizedBox(height: 16),
+
+              // Debug button (remove in production)
+              if (kDebugMode)
+                TextButton(
+                  onPressed: _testStorageConnection,
+                  child: const Text('Test Storage Connection'),
+                ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  ImageProvider? _getProfileImage() {
+    if (_pickedImage != null) {
+      if (kIsWeb) {
+        return NetworkImage(_pickedImage!.path);
+      } else {
+        return FileImage(File(_pickedImage!.path));
+      }
+    } else if (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty) {
+      return NetworkImage(_currentAvatarUrl!);
+    }
+    return null;
   }
 }

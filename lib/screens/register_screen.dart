@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
-import 'login_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 class RegisterScreen extends StatefulWidget {
@@ -19,6 +18,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +74,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             color: Colors.orange.shade700,
                           ),
                         ),
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
                     ),
 
@@ -161,8 +170,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ],
                       ),
                       child: TextField(
-                        controller:
-                            emailController, // Gunakan emailController di sini
+                        controller: emailController,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: "Email",
@@ -254,8 +262,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             onPressed: () {
                               setState(() {
-                                obscureConfirmPassword =
-                                    !obscureConfirmPassword;
+                                obscureConfirmPassword = !obscureConfirmPassword;
                               });
                             },
                           ),
@@ -268,91 +275,111 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     const SizedBox(height: 32),
 
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (usernameController.text.isNotEmpty &&
-                            emailController.text.isNotEmpty &&
-                            passwordController.text.isNotEmpty &&
-                            confirmPasswordController.text.isNotEmpty) {
-                          // Memeriksa apakah password dan konfirmasi password cocok
-                          if (passwordController.text !=
-                              confirmPasswordController.text) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Password tidak cocok"),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-
-                          try {
-                            // Mendaftarkan pengguna dengan Supabase
-                            final response = await supabase
-                                .Supabase.instance.client.auth
-                                .signUp(
-                              email: emailController.text.trim(),
-                              password: passwordController.text,
-                            );
-
-                            // Check if the user was created successfully
-                            if (response.user != null) {
-                              // If the sign-up is successful, save the username in UserProvider
-                              Provider.of<UserProvider>(context, listen: false)
-                                  .register(usernameController
-                                      .text); // Save the username
-
-                              // Navigate to the login screen after successful registration
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const LoginScreen()),
-                              );
-                            } else {
-                              // If registration failed, just show a generic message
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : () async {
+                          if (usernameController.text.isNotEmpty &&
+                              emailController.text.isNotEmpty &&
+                              passwordController.text.isNotEmpty &&
+                              confirmPasswordController.text.isNotEmpty) {
+                            // Memeriksa apakah password dan konfirmasi password cocok
+                            if (passwordController.text !=
+                                confirmPasswordController.text) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text("Pendaftaran gagal"),
+                                  content: Text("Password tidak cocok"),
                                   backgroundColor: Colors.red,
                                 ),
                               );
+                              return;
                             }
-                          } catch (e) {
-                            // Handle any unexpected errors
+
+                            setState(() => _isLoading = true);
+
+                            try {
+                              // Mendaftarkan pengguna dengan Supabase
+                              final response = await supabase
+                                  .Supabase.instance.client.auth
+                                  .signUp(
+                                email: emailController.text.trim(),
+                                password: passwordController.text,
+                              );
+
+                              // Check if the user was created successfully
+                              if (response.user != null && mounted) {
+                                // If the sign-up is successful, save the username in UserProvider
+                                Provider.of<UserProvider>(context, listen: false)
+                                    .register(usernameController.text);
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Pendaftaran berhasil! Silakan cek email untuk verifikasi."),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+
+                                // Navigate to the login screen after successful registration
+                                Navigator.of(context).pushNamedAndRemoveUntil(
+                                  '/login',
+                                  (route) => false,
+                                );
+                              } else {
+                                // If registration failed, just show a generic message
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Pendaftaran gagal"),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              // Handle any unexpected errors
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text("Terjadi kesalahan: ${e.toString()}"),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isLoading = false);
+                              }
+                            }
+                          } else {
+                            // Show message if any field is empty
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content:
-                                    Text("Terjadi kesalahan: ${e.toString()}"),
+                              const SnackBar(
+                                content: Text("Semua field harus diisi"),
                                 backgroundColor: Colors.red,
                               ),
                             );
                           }
-                        } else {
-                          // Show message if any field is empty
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Semua field harus diisi"),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 3,
+                          shadowColor: Colors.orange.withOpacity(0.5),
                         ),
-                        elevation: 3,
-                        shadowColor: Colors.orange.withOpacity(0.5),
-                      ),
-                      child: const Text(
-                        "DAFTAR",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              )
+                            : const Text(
+                                "DAFTAR",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
 
@@ -370,7 +397,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         TextButton(
                           onPressed: () {
-                            Navigator.pop(context);
+                            Navigator.of(context).pop();
                           },
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.orange.shade800,
