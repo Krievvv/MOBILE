@@ -32,7 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container( 
+      body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -262,7 +262,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             onPressed: () {
                               setState(() {
-                                obscureConfirmPassword = !obscureConfirmPassword;
+                                obscureConfirmPassword =
+                                    !obscureConfirmPassword;
                               });
                             },
                           ),
@@ -278,87 +279,95 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : () async {
-                          if (usernameController.text.isNotEmpty &&
-                              emailController.text.isNotEmpty &&
-                              passwordController.text.isNotEmpty &&
-                              confirmPasswordController.text.isNotEmpty) {
-                            // Memeriksa apakah password dan konfirmasi password cocok
-                            if (passwordController.text !=
-                                confirmPasswordController.text) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Password tidak cocok"),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                if (usernameController.text.isNotEmpty &&
+                                    emailController.text.isNotEmpty &&
+                                    passwordController.text.isNotEmpty &&
+                                    confirmPasswordController.text.isNotEmpty) {
+                                  // Memeriksa apakah password dan konfirmasi password cocok
+                                  if (passwordController.text !=
+                                      confirmPasswordController.text) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Password tidak cocok"),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                            setState(() => _isLoading = true);
+                                  setState(() => _isLoading = true);
 
-                            try {
-                              // Mendaftarkan pengguna dengan Supabase
-                              final response = await supabase
-                                  .Supabase.instance.client.auth
-                                  .signUp(
-                                email: emailController.text.trim(),
-                                password: passwordController.text,
-                              );
+                                  try {
+                                    // Mendaftarkan pengguna dengan Supabase
+                                    final response = await supabase
+                                        .Supabase.instance.client.auth
+                                        .signUp(
+                                      email: emailController.text.trim(),
+                                      password: passwordController.text,
+                                    );
 
-                              // Check if the user was created successfully
-                              if (response.user != null && mounted) {
-                                // If the sign-up is successful, save the username in UserProvider
-                                Provider.of<UserProvider>(context, listen: false)
-                                    .register(usernameController.text);
+                                    // Check if the user was created successfully
+                                    if (response.user != null && mounted) {
+                                      // If the sign-up is successful, save the username in UserProvider
+                                      Provider.of<UserProvider>(context,
+                                              listen: false)
+                                          .register(usernameController.text);
 
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Pendaftaran berhasil! Silakan cek email untuk verifikasi."),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                              "Pendaftaran berhasil! Silakan cek email untuk verifikasi."),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
 
-                                // Navigate to the login screen after successful registration
-                                Navigator.of(context).pushNamedAndRemoveUntil(
-                                  '/login',
-                                  (route) => false,
-                                );
-                              } else {
-                                // If registration failed, just show a generic message
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Pendaftaran gagal"),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              // Handle any unexpected errors
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content:
-                                        Text("Terjadi kesalahan: ${e.toString()}"),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            } finally {
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                              }
-                            }
-                          } else {
-                            // Show message if any field is empty
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Semua field harus diisi"),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
+                                      // Navigate to the login screen after successful registration
+                                      Navigator.of(context)
+                                          .pushNamedAndRemoveUntil(
+                                        '/login',
+                                        (route) => false,
+                                      );
+                                    } else {
+                                      // If registration failed, just show a generic message
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text("Pendaftaran gagal"),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    // Handle any unexpected errors
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              "Terjadi kesalahan: ${e.toString()}"),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                    }
+                                  }
+                                } else {
+                                  // Show message if any field is empty
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text("Semua field harus diisi"),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange.shade700,
                           foregroundColor: Colors.white,
@@ -371,7 +380,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               )
                             : const Text(
                                 "DAFTAR",

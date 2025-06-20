@@ -145,7 +145,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? NetworkImage(_userProfile!.avatarUrl!)
                           : null,
                       child: _userProfile?.avatarUrl == null
-                          ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                          ? const Icon(Icons.person,
+                              size: 50, color: Colors.grey)
                           : null,
                     ),
                     const SizedBox(height: 16),
@@ -166,7 +167,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ],
-                    if (_userProfile?.bio != null && _userProfile!.bio!.isNotEmpty) ...[
+                    if (_userProfile?.bio != null &&
+                        _userProfile!.bio!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
                         _userProfile!.bio!,
@@ -243,7 +245,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.edit, color: Colors.orangeAccent),
+                      leading:
+                          const Icon(Icons.edit, color: Colors.orangeAccent),
                       title: const Text('Edit Profil'),
                       trailing: const Icon(Icons.arrow_forward_ios),
                       onTap: _navigateToEditProfile,
@@ -257,7 +260,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         // TODO: Navigate to settings
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Fitur pengaturan akan segera hadir!'),
+                            content:
+                                Text('Fitur pengaturan akan segera hadir!'),
                           ),
                         );
                       },
@@ -265,13 +269,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const Divider(),
                     ListTile(
                       leading: const Icon(Icons.logout, color: Colors.red),
-                      title: const Text('Keluar', style: TextStyle(color: Colors.red)),
+                      title: const Text('Keluar',
+                          style: TextStyle(color: Colors.red)),
                       onTap: () {
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('Konfirmasi'),
-                            content: const Text('Apakah Anda yakin ingin keluar?'),
+                            content:
+                                const Text('Apakah Anda yakin ingin keluar?'),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
@@ -282,7 +288,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   Navigator.pop(context);
                                   _signOut();
                                 },
-                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red),
                                 child: const Text('Keluar'),
                               ),
                             ],
@@ -300,7 +307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Container(

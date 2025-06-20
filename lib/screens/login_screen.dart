@@ -172,7 +172,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Handle forgot password
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Fitur lupa password akan segera hadir!'),
+                              content: Text(
+                                  'Fitur lupa password akan segera hadir!'),
                             ),
                           );
                         },
@@ -189,62 +190,69 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : () async {
-                          final email = usernameController.text.trim();
-                          final password = passwordController.text;
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                final email = usernameController.text.trim();
+                                final password = passwordController.text;
 
-                          if (email.isNotEmpty && password.isNotEmpty) {
-                            setState(() => _isLoading = true);
-                            
-                            try {
-                              final response = await supabase
-                                  .Supabase.instance.client.auth
-                                  .signInWithPassword(
-                                      email: email, password: password);
+                                if (email.isNotEmpty && password.isNotEmpty) {
+                                  setState(() => _isLoading = true);
 
-                              if (response.user != null && mounted) {
-                                // If login is successful, set the user information in UserProvider
-                                final userProvider = Provider.of<UserProvider>(
-                                    context,
-                                    listen: false);
+                                  try {
+                                    final response = await supabase
+                                        .Supabase.instance.client.auth
+                                        .signInWithPassword(
+                                            email: email, password: password);
 
-                                // Use the email from Supabase's response
-                                final userEmail = response.user!.email ?? 'Unknown';
+                                    if (response.user != null && mounted) {
+                                      // If login is successful, set the user information in UserProvider
+                                      final userProvider =
+                                          Provider.of<UserProvider>(context,
+                                              listen: false);
 
-                                // Set user info in the provider
-                                userProvider.setUser(userEmail);
+                                      // Use the email from Supabase's response
+                                      final userEmail =
+                                          response.user!.email ?? 'Unknown';
 
-                                // Navigate to the MainScreen using named route
-                                Navigator.of(context).pushNamedAndRemoveUntil(
-                                  '/main',
-                                  (route) => false,
-                                );
-                              } else {
-                                throw 'Login failed';
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text("Login gagal: ${e.toString()}"),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            } finally {
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                              }
-                            }
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Email dan password harus diisi"),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
+                                      // Set user info in the provider
+                                      userProvider.setUser(userEmail);
+
+                                      // Navigate to the MainScreen using named route
+                                      Navigator.of(context)
+                                          .pushNamedAndRemoveUntil(
+                                        '/main',
+                                        (route) => false,
+                                      );
+                                    } else {
+                                      throw 'Login failed';
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              "Login gagal: ${e.toString()}"),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                    }
+                                  }
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          "Email dan password harus diisi"),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange.shade700,
                           foregroundColor: Colors.white,
@@ -257,7 +265,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: _isLoading
                             ? const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               )
                             : const Text(
                                 "MASUK",

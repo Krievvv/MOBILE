@@ -17,11 +17,32 @@ class BookDetailScreen extends StatefulWidget {
 class _BookDetailScreenState extends State<BookDetailScreen> {
   late bool isRead;
   bool _isLoading = false;
+  late Book currentBook; // Track current book state
 
   @override
   void initState() {
     super.initState();
     isRead = widget.book.isRead;
+    currentBook = widget.book; // Initialize with passed book
+  }
+
+  Future<void> _refreshBookData() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('books')
+          .select()
+          .eq('id', widget.book.id)
+          .single();
+
+      if (mounted) {
+        setState(() {
+          currentBook = Book.fromJson(response);
+          isRead = currentBook.isRead;
+        });
+      }
+    } catch (e) {
+      print('Error refreshing book data: $e');
+    }
   }
 
   Future<void> _toggleReadStatus() async {
@@ -41,11 +62,13 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       await Supabase.instance.client
           .from('books')
           .update({'is_read': newStatus})
-          .eq('id', widget.book.id)
+          .eq('id', currentBook.id)
           .eq('user_id', currentUserId); // Ensure user owns this book
 
       setState(() {
         isRead = newStatus;
+        // Update current book object using copyWith
+        currentBook = currentBook.copyWith(isRead: newStatus);
       });
 
       if (mounted) {
@@ -107,7 +130,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         await Supabase.instance.client
             .from('books')
             .delete()
-            .eq('id', widget.book.id)
+            .eq('id', currentBook.id)
             .eq('user_id', currentUserId);
 
         if (mounted) {
@@ -149,17 +172,22 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
           iconTheme: IconThemeData(color: Colors.white),
           actions: [
             IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: _refreshBookData,
+              tooltip: 'Refresh Data',
+            ),
+            IconButton(
               icon: const Icon(Icons.edit, color: Colors.white),
               onPressed: () async {
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => EditBookScreen(book: widget.book),
+                    builder: (context) => EditBookScreen(book: currentBook),
                   ),
                 );
                 if (result != null && result['updated'] == true) {
-                  // Refresh the screen or update the book data
-                  setState(() {});
+                  // Refresh book data after edit
+                  await _refreshBookData();
                 }
               },
             ),
@@ -219,29 +247,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: widget.book.coverImageUrl != null && 
-                             widget.book.coverImageUrl!.isNotEmpty
-                          ? Image.network(
-                              widget.book.coverImageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => 
-                                  Container(
-                                    color: Colors.grey[200],
-                                    child: const Icon(
-                                      Icons.book,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                            )
-                          : Container(
-                              color: Colors.grey[200],
-                              child: const Icon(
-                                Icons.book,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                            ),
+                      child: _buildBookCover(),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -251,7 +257,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.book.title,
+                          currentBook.title,
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -260,7 +266,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          widget.book.author,
+                          currentBook.author,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             color: Colors.orangeAccent,
                             fontWeight: FontWeight.w500,
@@ -321,19 +327,19 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildDetailRow('Kategori', widget.book.category, Icons.category),
-                  _buildDetailRow('Tanggal Terbit', widget.book.publishedDate, Icons.calendar_today),
-                  _buildDetailRow('Penerbit', widget.book.publisher, Icons.business),
-                  _buildDetailRow('Halaman', '${widget.book.pages} halaman', Icons.description),
-                  _buildDetailRow('ISBN', widget.book.isbn, Icons.qr_code),
-                  _buildDetailRow('Seri', widget.book.series, Icons.collections_bookmark),
+                  _buildDetailRow('Kategori', currentBook.category, Icons.category),
+                  _buildDetailRow('Tanggal Terbit', currentBook.publishedDate, Icons.calendar_today),
+                  _buildDetailRow('Penerbit', currentBook.publisher, Icons.business),
+                  _buildDetailRow('Halaman', '${currentBook.pages} halaman', Icons.description),
+                  _buildDetailRow('ISBN', currentBook.isbn, Icons.qr_code),
+                  _buildDetailRow('Seri', currentBook.series, Icons.collections_bookmark),
                 ],
               ),
             ),
           ),
           
           // Description
-          if (widget.book.description.isNotEmpty) ...[
+          if (currentBook.description.isNotEmpty) ...[
             const SizedBox(height: 16),
             Card(
               elevation: 2,
@@ -351,7 +357,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      widget.book.description,
+                      currentBook.description,
                       style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.justify,
                     ),
@@ -363,6 +369,77 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildBookCover() {
+    print('Building book cover for: ${currentBook.title}');
+    print('Cover URL: ${currentBook.coverImageUrl}');
+    
+    if (currentBook.coverImageUrl != null && currentBook.coverImageUrl!.isNotEmpty) {
+      return Image.network(
+        currentBook.coverImageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[200],
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Memuat...', style: TextStyle(fontSize: 10)),
+                ],
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('Error loading cover image: $error');
+          return Container(
+            color: Colors.grey[200],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.image_not_supported,
+                  size: 40,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Gambar tidak\ndapat dimuat',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      return Container(
+        color: Colors.grey[200],
+        child: const Icon(
+          Icons.book,
+          size: 50,
+          color: Colors.grey,
+        ),
+      );
+    }
   }
 
   Widget _buildNotesTab(ThemeData theme) {
@@ -398,12 +475,12 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   border: Border.all(color: Colors.grey[300]!),
                 ),
                 child: Text(
-                  widget.book.notes.isEmpty 
+                  currentBook.notes.isEmpty 
                       ? 'Belum ada catatan untuk buku ini.\nTambahkan catatan pribadi Anda di sini.'
-                      : widget.book.notes,
+                      : currentBook.notes,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: widget.book.notes.isEmpty ? Colors.grey : null,
-                    fontStyle: widget.book.notes.isEmpty ? FontStyle.italic : null,
+                    color: currentBook.notes.isEmpty ? Colors.grey : null,
+                    fontStyle: currentBook.notes.isEmpty ? FontStyle.italic : null,
                   ),
                 ),
               ),

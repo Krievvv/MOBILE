@@ -259,6 +259,9 @@ class _ReadingTimerScreenState extends State<ReadingTimerScreen>
                               ? Image.network(
                                   book.coverImageUrl!,
                                   fit: BoxFit.cover,
+                                  headers: {
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                  },
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Icon(Icons.book, color: Colors.grey),
                                 )
@@ -396,6 +399,9 @@ class _ReadingTimerScreenState extends State<ReadingTimerScreen>
                                       ? Image.network(
                                           timerProvider.currentBook!.coverImageUrl!,
                                           fit: BoxFit.cover,
+                                          headers: {
+                                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                          },
                                           errorBuilder: (context, error, stackTrace) =>
                                               const Icon(Icons.book, color: Colors.grey),
                                         )

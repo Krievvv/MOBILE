@@ -841,52 +841,84 @@ class _AddBookScreenState extends State<AddBookScreen> {
   }
 
   Widget _buildCoverImage() {
-    // Priority: 1. Uploaded file, 2. Local file preview, 3. URL, 4. Placeholder
-    if (_uploadedCoverUrl != null) {
-      return Image.network(
-        _uploadedCoverUrl!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return const Center(child: CircularProgressIndicator());
-        },
-        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-      );
-    } else if (_coverImage != null) {
-      // Show local file preview while uploading
-      return kIsWeb
-          ? (_coverImageBytes != null
-              ? Image.memory(
-                  _coverImageBytes!,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                )
-              : const Center(child: CircularProgressIndicator()))
-          : Image.file(
-              File(_coverImage!.path),
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            );
-    } else if (_coverImageUrlController.text.isNotEmpty) {
-      return Image.network(
-        _coverImageUrlController.text,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return const Center(child: CircularProgressIndicator());
-        },
-        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-      );
-    } else {
-      return _buildPlaceholder();
-    }
+  // Priority: 1. Uploaded file, 2. Local file preview, 3. URL, 4. Placeholder
+  if (_uploadedCoverUrl != null) {
+    return Image.network(
+      _uploadedCoverUrl!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              const Text('Memuat...', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+    );
+  } else if (_coverImage != null) {
+    // Show local file preview while uploading
+    return kIsWeb
+        ? (_coverImageBytes != null
+            ? Image.memory(
+                _coverImageBytes!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              )
+            : const Center(child: CircularProgressIndicator()))
+        : Image.file(
+            File(_coverImage!.path),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          );
+  } else if (_coverImageUrlController.text.isNotEmpty) {
+    return Image.network(
+      _coverImageUrlController.text,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              const Text('Memuat...', style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+    );
+  } else {
+    return _buildPlaceholder();
   }
+}
 
   Widget _buildPlaceholder() {
     return Container(

@@ -24,12 +24,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
       final session = supabase.Supabase.instance.client.auth.currentSession;
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      
+
       if (session != null && mounted) {
         // User is logged in, set user in provider
         final email = session.user.email ?? 'Unknown';
         userProvider.setUser(email);
-        
+
         // Navigate to main screen
         Navigator.of(context).pushReplacementNamed('/main');
       } else if (mounted) {
@@ -84,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              
+
               // App Name
               Text(
                 'Pustakasaku',
@@ -95,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // Tagline
               Text(
                 'Kelola koleksi buku Anda',
@@ -105,10 +105,11 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               const SizedBox(height: 60),
-              
+
               // Loading Indicator
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.orange.shade700),
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(Colors.orange.shade700),
                 strokeWidth: 3,
               ),
             ],

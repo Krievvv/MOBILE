@@ -20,7 +20,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _usernameController = TextEditingController();
   final _fullNameController = TextEditingController();
   final _bioController = TextEditingController();
-  
+
   XFile? _pickedImage;
   bool _isLoading = false;
   bool _isCheckingUsername = false;
@@ -44,7 +44,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _checkUsernameAvailability(String username) async {
     if (username.trim().isEmpty) return;
-    
+
     // Don't check if it's the same as current username
     if (widget.currentProfile?.username == username.trim()) {
       setState(() {
@@ -177,7 +177,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final isConnected = await StorageService.testStorageConnection();
       if (!isConnected) {
-        _showErrorSnackBar('Storage bucket "avatars" tidak ditemukan. Jalankan script SQL terlebih dahulu.');
+        _showErrorSnackBar(
+            'Storage bucket "avatars" tidak ditemukan. Jalankan script SQL terlebih dahulu.');
       } else {
         _showErrorSnackBar('Koneksi storage berhasil!');
       }
@@ -206,7 +207,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Icon(icon, color: Colors.orangeAccent, size: 30),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -241,17 +244,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // Create new profile
         updatedProfile = await ProfileService.createProfile(
           username: _usernameController.text.trim(),
-          fullName: _fullNameController.text.trim().isEmpty ? null : _fullNameController.text.trim(),
+          fullName: _fullNameController.text.trim().isEmpty
+              ? null
+              : _fullNameController.text.trim(),
           avatarUrl: avatarUrl,
-          bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+          bio: _bioController.text.trim().isEmpty
+              ? null
+              : _bioController.text.trim(),
         );
       } else {
         // Update existing profile
         updatedProfile = await ProfileService.updateProfile(
           username: _usernameController.text.trim(),
-          fullName: _fullNameController.text.trim().isEmpty ? null : _fullNameController.text.trim(),
+          fullName: _fullNameController.text.trim().isEmpty
+              ? null
+              : _fullNameController.text.trim(),
           avatarUrl: avatarUrl,
-          bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+          bio: _bioController.text.trim().isEmpty
+              ? null
+              : _bioController.text.trim(),
         );
       }
 
@@ -301,13 +312,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       appBar: AppBar(
         title: Text(
           widget.currentProfile == null ? 'Buat Profil' : 'Edit Profil',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.orangeAccent,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: _isLoading 
+            icon: _isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -328,7 +340,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              
+
               // Profile Picture
               Stack(
                 children: [
@@ -370,8 +382,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 controller: _usernameController,
                 decoration: InputDecoration(
                   labelText: 'Username *',
-                  prefixIcon: const Icon(Icons.person, color: Colors.orangeAccent),
-                  suffixIcon: _isCheckingUsername 
+                  prefixIcon:
+                      const Icon(Icons.person, color: Colors.orangeAccent),
+                  suffixIcon: _isCheckingUsername
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -380,13 +393,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         )
-                      : _usernameError == null && _usernameController.text.isNotEmpty
+                      : _usernameError == null &&
+                              _usernameController.text.isNotEmpty
                           ? const Icon(Icons.check_circle, color: Colors.green)
                           : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                    borderSide:
+                        const BorderSide(color: Colors.orangeAccent, width: 2),
                   ),
                   errorBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -421,11 +437,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 controller: _fullNameController,
                 decoration: InputDecoration(
                   labelText: 'Nama Lengkap',
-                  prefixIcon: const Icon(Icons.badge, color: Colors.orangeAccent),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon:
+                      const Icon(Icons.badge, color: Colors.orangeAccent),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                    borderSide:
+                        const BorderSide(color: Colors.orangeAccent, width: 2),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -438,11 +457,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 controller: _bioController,
                 decoration: InputDecoration(
                   labelText: 'Bio',
-                  prefixIcon: const Icon(Icons.info, color: Colors.orangeAccent),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixIcon:
+                      const Icon(Icons.info, color: Colors.orangeAccent),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.orangeAccent, width: 2),
+                    borderSide:
+                        const BorderSide(color: Colors.orangeAccent, width: 2),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
@@ -455,14 +477,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: (_isLoading || _usernameError != null) ? null : _saveProfile,
-                  icon: _isLoading 
+                  onPressed: (_isLoading || _usernameError != null)
+                      ? null
+                      : _saveProfile,
+                  icon: _isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Icon(Icons.save),

@@ -37,7 +37,8 @@ class _MainScreenState extends State<MainScreen> {
     final supabaseClient = supabase.Supabase.instance.client;
 
     final List<Widget> _screens = [
-      OptimizedHomeScreen(bookProvider: bookProvider, onNavigate: _onItemTapped),
+      OptimizedHomeScreen(
+          bookProvider: bookProvider, onNavigate: _onItemTapped),
       const ReadingTimerScreen(),
       const ReadingHistoryScreen(),
       ProfileScreen(
@@ -84,10 +85,10 @@ class HomeScreen extends StatelessWidget {
   Future<List<Map<String, dynamic>>> fetchBooks() async {
     try {
       final supabaseClient = supabase.Supabase.instance.client;
-      
+
       // Get current user ID
       final currentUserId = supabaseClient.auth.currentUser?.id;
-      
+
       if (currentUserId == null) {
         return []; // Return empty list if no user is logged in
       }
@@ -147,7 +148,10 @@ class HomeScreen extends StatelessWidget {
                   SizedBox(height: 8),
                   Text(
                     'Pustakasaku',
-                    style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold),
                   ),
                   Text(
                     'Kelola koleksi buku Anda',
@@ -195,7 +199,10 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.orangeAccent.withOpacity(0.1), Colors.orange.withOpacity(0.05)],
+                colors: [
+                  Colors.orangeAccent.withOpacity(0.1),
+                  Colors.orange.withOpacity(0.05)
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -206,8 +213,11 @@ class HomeScreen extends StatelessWidget {
               future: fetchBooks(),
               builder: (context, snapshot) {
                 final booksCount = snapshot.data?.length ?? 0;
-                final readBooks = snapshot.data?.where((book) => book['is_read'] == true).length ?? 0;
-                
+                final readBooks = snapshot.data
+                        ?.where((book) => book['is_read'] == true)
+                        .length ??
+                    0;
+
                 return Row(
                   children: [
                     Expanded(
@@ -269,7 +279,7 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
-          
+
           Expanded(
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: fetchBooks(),
@@ -368,7 +378,8 @@ class TimerAppBarButton extends StatelessWidget {
     return Consumer<TimerProvider>(
       builder: (context, timer, child) {
         final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
+          final mainScreenState =
+              context.findAncestorStateOfType<_MainScreenState>();
           mainScreenState?._onItemTapped(index);
         };
         if (timer.isRunning || timer.isPaused) {
@@ -416,7 +427,8 @@ class TimerDrawerItem extends StatelessWidget {
     return Consumer<TimerProvider>(
       builder: (context, timer, child) {
         final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
+          final mainScreenState =
+              context.findAncestorStateOfType<_MainScreenState>();
           mainScreenState?._onItemTapped(index);
         };
         return ListTile(
@@ -459,7 +471,8 @@ class TimerQuickAccessButton extends StatelessWidget {
     return Consumer<TimerProvider>(
       builder: (context, timer, child) {
         final onNavigate = (int index) {
-          final mainScreenState = context.findAncestorStateOfType<_MainScreenState>();
+          final mainScreenState =
+              context.findAncestorStateOfType<_MainScreenState>();
           mainScreenState?._onItemTapped(index);
         };
         return IconButton(
